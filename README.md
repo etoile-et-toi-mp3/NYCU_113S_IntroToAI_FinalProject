@@ -2,7 +2,7 @@
 
 ## Background
 
-Customized Dressing Benchmark (穿搭寶 / C.D.B.) is a project developed by [etoile_et_toi.mp3](https://github.com/etoile-et-toi-mp3) and (tbm) during the second semester of the 113 academic year (Feb. 2025 ~ Jun. 2025) as a final project for the "Introduction to Artificial Intelligence" course, which is instructed by A.P. Yu-Chun Yen (顏羽君) at National Yang Ming Chiao Tung University, Taiwan.
+Customized Dressing Benchmark (穿搭寶 / C.D.B.) is a project developed by [etoile_et_toi.mp3](https://github.com/etoile-et-toi-mp3), [slashotw](https://github.com/slashotw), [tingyun1412](https://github.com/tingyun1412), and [EthelHsiao](https://github.com/EthelHsiao) during the second semester of the 113 academic year (Feb. 2025 ~ Jun. 2025) as a final project for the "Introduction to Artificial Intelligence" course, which is instructed by A.P. Yu-Chun Yen (顏羽君) at National Yang Ming Chiao Tung University, Taiwan.
 
 ## Purpose
 
