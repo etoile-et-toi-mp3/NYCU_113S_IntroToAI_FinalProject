@@ -17,6 +17,7 @@ import time
 import gc
 import psutil
 import multiprocessing as mp
+import sys
 
 # Mac 特定優化設置
 def setup_mac_optimization():
@@ -395,24 +396,20 @@ class MacOptimizedTrainer:
 
 # ================== 主程式 ==================
 
-def main():
+def main(config, resume):
     print("🍎 Mac 優化訓練開始")
     
     # Mac優化設置
     device = setup_mac_optimization()
     
-    # 設定參數（Mac優化）
-    data_root = "./dataset"
-    batch_size = 8  # 減少batch size以適應Mac記憶體
-    learning_rate = 0.0001
-    num_epochs = 20  # 減少epoch數
-    max_samples_per_class = 300  # 限制每類樣本數
-    
-    # 輕量化的數據增強
+    # 數據增強
     train_transform = transforms.Compose([
-        transforms.Resize((224, 224)),  # 直接resize，不使用RandomCrop
-        transforms.RandomHorizontalFlip(p=0.3),
-        transforms.ColorJitter(brightness=0.1, contrast=0.1),
+        transforms.Resize((224, 224)),
+        transforms.RandomHorizontalFlip(p=config.HORIZONTAL_FLIP_PROB),
+        transforms.ColorJitter(
+            brightness=config.COLOR_JITTER_BRIGHTNESS,
+            contrast=config.COLOR_JITTER_CONTRAST
+        ),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], 
                            std=[0.229, 0.224, 0.225])
@@ -421,27 +418,31 @@ def main():
     # 建立數據集
     print("📂 載入數據集...")
     train_dataset = OptimizedOutfitDataset(
-        data_root, 
+        config.DATA_ROOT,
         transform=train_transform,
-        max_samples_per_class=max_samples_per_class
+        max_samples_per_class=config.MAX_SAMPLES_PER_CLASS
     )
     
     # Mac優化的DataLoader設置
     train_loader = DataLoader(
-        train_dataset, 
-        batch_size=batch_size, 
+        train_dataset,
+        batch_size=config.BATCH_SIZE,
         shuffle=True,
-        num_workers=0,  # Mac上設為0避免多進程問題
-        pin_memory=False,  # MPS不需要pin_memory
-        drop_last=True,
-        persistent_workers=False
+        num_workers=config.NUM_WORKERS,
+        pin_memory=config.PIN_MEMORY,
+        drop_last=config.DROP_LAST,
+        persistent_workers=config.PERSISTENT_WORKERS
     )
     
     print(f"📊 數據集大小: {len(train_dataset)}")
     print(f"🔧 使用設備: {device}")
     
     # 初始化輕量化模型
-    model = LightweightStyleClassifier()
+    model = LightweightStyleClassifier(
+        num_styles=config.NUM_STYLES,
+        num_genders=config.NUM_GENDERS,
+        feature_dim=config.FEATURE_DIM
+    )
     model.to(device)
     
     # 計算模型參數數量
@@ -454,97 +455,116 @@ def main():
     
     # 優化器設置
     optimizer = torch.optim.AdamW(
-        model.parameters(), 
-        lr=learning_rate,
-        weight_decay=1e-4,
-        betas=(0.9, 0.999)
+        model.parameters(),
+        lr=config.LEARNING_RATE,
+        weight_decay=config.WEIGHT_DECAY,
+        betas=config.OPTIMIZER_BETAS
     )
     
     # 學習率調度器
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, 
-        T_max=num_epochs,
-        eta_min=learning_rate * 0.1
+        optimizer,
+        T_max=config.NUM_EPOCHS,
+        eta_min=config.LEARNING_RATE * config.SCHEDULER_ETA_MIN_RATIO
     )
     
     # 訓練循環
     print("🚀 開始訓練...")
     best_loss = float('inf')
+    start_epoch = 0
     
-    for epoch in range(num_epochs):
-        print(f"\n{'='*50}")
-        print(f"📅 Epoch {epoch+1}/{num_epochs}")
-        print(f"{'='*50}")
+    if resume and os.path.exists(resume):
+        print(f"🔄 從檢查點恢復: {resume}")
+        checkpoint = torch.load(resume, map_location=device)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        start_epoch = checkpoint['epoch'] + 1
+        best_loss = checkpoint.get('loss', float('inf'))
+    
+    # 訓練循環
+    try:
+        for epoch in range(start_epoch, config.NUM_EPOCHS):
+            print(f"\n{'='*50}")
+            print(f"📅 Epoch {epoch+1}/{config.NUM_EPOCHS}")
+            print(f"{'='*50}")
+            
+            # 訓練一個epoch
+            avg_loss = trainer.train_epoch(
+                train_loader, optimizer, epoch, config.MAX_MEMORY_MB
+            )
+            scheduler.step()
+            
+            current_lr = optimizer.param_groups[0]['lr']
+            memory_usage = trainer.get_memory_usage()
+            
+            print(f"📊 Epoch {epoch+1} 結果:")
+            print(f"  平均損失: {avg_loss:.4f}")
+            print(f"  學習率: {current_lr:.6f}")
+            print(f"  記憶體使用: {memory_usage:.1f}MB")
+            
+            # 保存最佳模型
+            if avg_loss < best_loss and avg_loss > 0:
+                best_loss = avg_loss
+                torch.save(model.state_dict(), config.BEST_MODEL_PATH)
+                print(f"💾 保存最佳模型，損失: {best_loss:.4f}")
+            
+            # 保存檢查點
+            if (epoch + 1) % config.SAVE_CHECKPOINT_EVERY == 0:
+                # 創建可序列化的配置字典
+                config_dict = {}
+                for key, value in config.__dict__.items():
+                    if isinstance(value, (int, float, str, bool, list, tuple)):
+                        config_dict[key] = value
+                
+                checkpoint = {
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'scheduler_state_dict': scheduler.state_dict(),
+                    'loss': avg_loss,
+                    'config': config_dict
+                }
+                checkpoint_path = f"{config.CHECKPOINT_PREFIX}{epoch+1}.pth"
+                torch.save(checkpoint, checkpoint_path)
+                print(f"💾 保存檢查點: {checkpoint_path}")
+            
+            # 記憶體清理
+            gc.collect()
+            if device.type == 'mps':
+                torch.mps.empty_cache()
+    
+    except KeyboardInterrupt:
+        print("\n⚠️  訓練被用戶中斷")
+        # 保存當前狀態
+        config_dict = {}
+        for key, value in config.__dict__.items():
+            if isinstance(value, (int, float, str, bool, list, tuple)):
+                config_dict[key] = value
         
-        # 訓練一個epoch
-        avg_loss = trainer.train_epoch(train_loader, optimizer, epoch)
-        scheduler.step()
-        
-        current_lr = optimizer.param_groups[0]['lr']
-        memory_usage = trainer.get_memory_usage()
-        
-        print(f"📊 Epoch {epoch+1} 結果:")
-        print(f"  平均損失: {avg_loss:.4f}")
-        print(f"  學習率: {current_lr:.6f}")
-        print(f"  記憶體使用: {memory_usage:.1f}MB")
-        
-        # 保存最佳模型
-        if avg_loss < best_loss and avg_loss > 0:
-            best_loss = avg_loss
-            torch.save(model.state_dict(), 'outfit_model_best_mac.pth')
-            print(f"💾 保存最佳模型，損失: {best_loss:.4f}")
-        
-        # 每5個epoch保存檢查點
-        if (epoch + 1) % 5 == 0:
-            checkpoint = {
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'scheduler_state_dict': scheduler.state_dict(),
-                'loss': avg_loss,
-            }
-            torch.save(checkpoint, f'checkpoint_mac_epoch_{epoch+1}.pth')
-            print(f"💾 保存檢查點: epoch_{epoch+1}")
-        
-        # 記憶體清理
-        gc.collect()
-        if device.type == 'mps':
-            torch.mps.empty_cache()
+        checkpoint = {
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict(),
+            'loss': avg_loss if 'avg_loss' in locals() else float('inf'),
+            'config': config_dict
+        }
+        torch.save(checkpoint, 'interrupted_checkpoint.pth')
+        print("💾 已保存中斷檢查點: interrupted_checkpoint.pth")
+    
+    except Exception as e:
+        print(f"❌ 訓練過程中發生錯誤: {e}")
+        sys.exit(1)
     
     # 保存最終模型
-    torch.save(model.state_dict(), 'outfit_model_final_mac.pth')
+    torch.save(model.state_dict(), config.FINAL_MODEL_PATH)
     
     print("\n🎉 訓練完成！")
-    print("📁 模型文件:")
-    print("  - outfit_model_best_mac.pth (最佳模型)")
-    print("  - outfit_model_final_mac.pth (最終模型)")
+    print("📁 生成的文件:")
+    print(f"  - {config.BEST_MODEL_PATH} (最佳模型)")
+    print(f"  - {config.FINAL_MODEL_PATH} (最終模型)")
     print("  - checkpoint_mac_epoch_*.pth (檢查點)")
-
-def resume_training(checkpoint_path, data_root="./dataset"):
-    """從檢查點恢復訓練"""
-    print(f"🔄 從檢查點恢復訓練: {checkpoint_path}")
-    
-    device = setup_mac_optimization()
-    
-    # 載入檢查點
-    checkpoint = torch.load(checkpoint_path, map_location=device)
-    
-    # 重建模型和優化器
-    model = LightweightStyleClassifier()
-    model.load_state_dict(checkpoint['model_state_dict'])
-    model.to(device)
-    
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001, weight_decay=1e-4)
-    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=20)
-    scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-    
-    start_epoch = checkpoint['epoch'] + 1
-    print(f"📅 從 epoch {start_epoch} 開始恢復訓練")
-    
-    # 繼續訓練...
-    # (這裡可以添加繼續訓練的邏輯)
 
 if __name__ == "__main__":
     main() 
