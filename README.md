@@ -1,22 +1,16 @@
-# 時尚AI系統 - 快速開始
+# About This Repository
 
-## 🛠️ 安裝
-```bash
-pip install torch torchvision timm transformers scikit-learn matplotlib pillow numpy psutil
-```
+## Background
 
-## usage:
-```bash
-# 訓練
-python unsupervised_train.py --data ../dataset --config balanced --backbone resnet50
+Customized Dressing Benchmark (穿搭寶 / C.D.B.) is a project developed by [etoile_et_toi.mp3](https://github.com/etoile-et-toi-mp3), [slashotw](https://github.com/slashotw), [tingyun1412](https://github.com/tingyun1412), and [EthelHsiao](https://github.com/EthelHsiao) during the second semester of the 113 academic year (Feb. 2025 ~ Jun. 2025) as a final project for the "Introduction to Artificial Intelligence" course, which is instructed by A.P. Yu-Chun Yen (顏羽君) at National Yang Ming Chiao Tung University, Taiwan.
 
-# 測試
-python unsupervised_test.py --model unsupervised_result/[時間戳]/best_model_resnet50_balanced.pth --image test.jpg --labels unsupervised_result/[時間戳]/dataset_labels.json --backbone resnet50 --top-k 5
-```
+## Purpose
 
-## ⚙️ 參數選項
+The purpose of this repository is to showcase the acquired skills of the authors and their capability of finishing a functionable project independently. By sharing this content openly, the repository aims to inspire discussions and spark new ideas related to the course's topics and tasks.
 
-**通用參數**:
-- `--config`: `minimal`(省記憶體) | `balanced`(推薦) | `performance`(高效能)
-- `--backbone`: `mobilenet` | `resnet18` | `resnet50` | `efficientnet_b0` | `efficientnet_b2` | `vit_tiny` | `vit_small` | `fashion_resnet`
-- `--top-k`: 返回相似圖片數量 (預設10)
+<!-- ## Content -->
+<!-- to be updated -->
+
+## Contact
+
+If you have any questions or suggestions, feel free to contact the author via [email](mailto:willyfu0905.cs12@nycu.edu.tw).
