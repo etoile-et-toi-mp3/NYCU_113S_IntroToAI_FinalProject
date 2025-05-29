@@ -35,6 +35,22 @@ def setup_mac_optimization():
         print("💻 使用 CPU")
     return device
 
+# ==================== Cuda加速設置 ====================
+
+def setup_cuda_optimization():
+    """設置 NVIDIA CUDA 特定的優化"""
+    if torch.cuda.is_available():
+        print(f"✅ 檢測到 CUDA 支持: {torch.cuda.get_device_name(0)}")
+        device = torch.device("cuda")
+        
+        # CUDA 性能優化選項
+        torch.backends.cudnn.benchmark = True  # 適用於輸入尺寸固定的模型
+        torch.backends.cudnn.deterministic = False  # 提高速度但結果非完全可重現
+    else:
+        print("⚠️ CUDA 不可用，使用 CPU")
+        device = torch.device("cpu")
+    return device
+
 # ==================== 模型架構定義（與訓練時相同） ====================
 
 class FashionBackbone(nn.Module):
@@ -209,9 +225,8 @@ def load_trained_model(model_path, device, backbone_type='mobilenet'):
     
     # 風格和性別類別
     style_categories = [
-        'Athleisure', 'BRITISH', 'CASUAL', 'GOTH', 'Kawaii', 
-        'Korean', 'MINIMALIST', 'Preppy', 'STREET', 'Streetwear', 
-        'Vintage', 'Y2K'
+        'Artsy', 'Athleisure', 'BRITISH', 'CASUAL', 'GOTH', 'Japanese',
+        'Kawaii', 'Korean', 'Preppy', 'STREET', 'Vintage'
     ]
     gender_categories = ['MEN', 'WOMEN']
     
@@ -322,11 +337,11 @@ def extract_features_from_dataset(model, dataset_root, device, max_images_per_cl
     print(f"🔨 從數據集提取特徵: {dataset_root}")
     
     style_categories = [
-        'Athleisure', 'BRITISH', 'CASUAL', 'GOTH', 'Kawaii', 
-        'Korean', 'MINIMALIST', 'Preppy', 'STREET', 'Streetwear', 
-        'Vintage', 'Y2K'
+        'Artsy', 'Athleisure', 'BRITISH', 'CASUAL', 'GOTH', 'Japanese',
+        'Kawaii', 'Korean', 'Preppy', 'STREET', 'Vintage'
     ]
     gender_categories = ['MEN', 'WOMEN']
+    
     
     transform = transforms.Compose([
         transforms.Resize((224, 224)),
@@ -385,7 +400,7 @@ def extract_features_from_dataset(model, dataset_root, device, max_images_per_cl
                         print(f"     已處理 {total_images} 張圖片...")
                         
                 except Exception as e:
-                    print(f"⚠️  跳過圖片 {img_path}: {e}")
+                    print(f"⚠️ 跳過圖片 {img_path}: {e}")
                     continue
     
     if total_images == 0:

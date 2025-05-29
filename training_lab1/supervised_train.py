@@ -37,12 +37,35 @@ def setup_mac_optimization():
         print("✅ 檢測到 Metal Performance Shaders (MPS) 支持")
         device = torch.device("mps")
     else:
-        print("⚠️  MPS 不可用，使用 CPU")
+        print("⚠️ MPS 不可用，使用 CPU")
         device = torch.device("cpu")
     
     torch.set_num_threads(min(8, mp.cpu_count()))
     os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
     
+    return device
+
+# ==================== Cuda加速設置 ====================
+
+def setup_cuda_optimization():
+    """設置 NVIDIA CUDA 特定的優化"""
+    if mp.get_start_method(allow_none=True) != 'spawn':
+        mp.set_start_method('spawn', force=True)
+
+    if torch.cuda.is_available():
+        print(f"✅ 檢測到 CUDA 支持: {torch.cuda.get_device_name(0)}")
+        device = torch.device("cuda")
+        
+        # CUDA 性能優化選項
+        torch.backends.cudnn.benchmark = True  # 適用於輸入尺寸固定的模型
+        torch.backends.cudnn.deterministic = False  # 提高速度但結果非完全可重現
+    else:
+        print("⚠️ CUDA 不可用，使用 CPU")
+        device = torch.device("cpu")
+
+    # 根據 CPU 核心數設置 PyTorch 線程數
+    torch.set_num_threads(min(8, mp.cpu_count()))
+
     return device
 
 # ==================== 輸出管理 ====================
@@ -133,32 +156,40 @@ def save_training_history_plot(train_history, output_dir):
 
 class TrainingConfig:
     """訓練配置類"""
-    def __init__(self, config_type="balanced", backbone_type="mobilenet"):
+    def __init__(self, config_type="balanced", backbone_type="mobilenet", device="cpu"):
         self.config_type = config_type
         self.backbone_type = backbone_type
+        self.device = device
         
         # 基礎配置
-        self.num_styles = 12
+        self.num_styles = 11
         self.num_genders = 2
         self.feature_dim = 1024
         
         # 風格和性別類別
         self.style_categories = [
-            'Athleisure', 'BRITISH', 'CASUAL', 'GOTH', 'Kawaii', 
-            'Korean', 'MINIMALIST', 'Preppy', 'STREET', 'Streetwear', 
-            'Vintage', 'Y2K'
+            'Artsy', 'Athleisure', 'BRITISH', 'CASUAL', 'GOTH', 'Japanese',
+            'Kawaii', 'Korean', 'Preppy', 'STREET', 'Vintage'
         ]
         self.gender_categories = ['MEN', 'WOMEN']
         
         # 根據配置類型設置參數
-        if config_type == "minimal":
-            self._set_minimal_config()
-        elif config_type == "performance":
-            self._set_performance_config()
-        else:  # balanced
-            self._set_balanced_config()
-    
-    def _set_minimal_config(self):
+        if device == "cuda":
+            if config_type == "minimal":
+                self._cuda_set_minimal_config()
+            elif config_type == "performance":
+                self._cuda_set_performance_config()
+            else:  # balanced
+                self._cuda_set_balanced_config()
+        else:
+            if config_type == "minimal":
+                self._mac_set_minimal_config()
+            elif config_type == "performance":
+                self._mac_set_performance_config()
+            else:  # balanced
+                self._mac_set_balanced_config()
+
+    def _mac_set_minimal_config(self):
         """最小配置 - 適合記憶體有限的情況"""
         self.batch_size = 2
         self.num_epochs = 10
@@ -167,7 +198,7 @@ class TrainingConfig:
         self.num_workers = 0
         self.max_memory_mb = 4000
         
-    def _set_balanced_config(self):
+    def _mac_set_balanced_config(self):
         """平衡配置 - 推薦設置"""
         self.batch_size = 8
         self.num_epochs = 30
@@ -176,7 +207,7 @@ class TrainingConfig:
         self.num_workers = 2
         self.max_memory_mb = 8000
         
-    def _set_performance_config(self):
+    def _mac_set_performance_config(self):
         """性能配置 - 適合高性能Mac"""
         self.batch_size = 16
         self.num_epochs = 50
@@ -184,6 +215,33 @@ class TrainingConfig:
         self.max_samples_per_class = 1000
         self.num_workers = 4
         self.max_memory_mb = 16000
+        
+    def _cuda_set_minimal_config(self):
+        """最小配置 - 適用於低記憶體 CUDA 設備或無 GPU 設備"""
+        self.batch_size = 8
+        self.num_epochs = 15
+        self.learning_rate = 0.001
+        self.max_samples_per_class = 200
+        self.num_workers = 2
+        self.max_memory_mb = 4096
+        
+    def _cuda_set_balanced_config(self):
+        """平衡配置 - 適用於大多數 CUDA 設備"""
+        self.batch_size = 32
+        self.num_epochs = 25
+        self.learning_rate = 0.001
+        self.max_samples_per_class = 500
+        self.num_workers = 4
+        self.max_memory_mb = 8192
+
+    def _cuda_set_performance_config(self):
+        """性能配置 - 適用於高端 GPU 系統"""
+        self.batch_size = 64
+        self.num_epochs = 40
+        self.learning_rate = 0.0005
+        self.max_samples_per_class = 1000
+        self.num_workers = 8
+        self.max_memory_mb = 16384
 
 # ==================== Backbone定義 ====================
 
@@ -477,7 +535,7 @@ class MemoryEfficientContrastiveLoss(nn.Module):
 
 # ==================== 訓練器 ====================
 
-class MacOptimizedTrainer:
+class OptimizedTrainer:
     def __init__(self, model, config, device, output_dir):
         self.model = model
         self.config = config
@@ -651,19 +709,29 @@ class MacOptimizedTrainer:
         torch.save(checkpoint, filepath)
         self.log_message(f"檢查點已保存: {filepath}")
 
-def train_model(data_root, config_type="balanced", backbone_type="mobilenet", resume_from=None):
+def train_model(data_root, config_type="balanced", backbone_type="mobilenet", resume_from=None, platform="auto"):
     """主訓練函數"""
     print("🚀 開始訓練時尚風格分類模型")
     print("=" * 50)
     
     # 設備設置
-    device = setup_mac_optimization()
+    device = torch.device("cpu")
+    if platform == "auto":
+        device = setup_cuda_optimization() # prefer cuda first
+        if device == torch.device("cpu"):
+            device = setup_mac_optimization()
+    else:
+        if platform == "cuda":
+            device = setup_cuda_optimization()
+        elif platform == "mps":
+            device = setup_mac_optimization()
+        
     
     # 創建輸出目錄
     output_dir = create_output_directory()
     
     # 創建配置
-    config = TrainingConfig(config_type, backbone_type)
+    config = TrainingConfig(config_type, backbone_type, device)
     save_config_to_file(config, output_dir)
     
     print(f"📊 訓練配置:")
@@ -702,7 +770,7 @@ def train_model(data_root, config_type="balanced", backbone_type="mobilenet", re
     model = EnhancedStyleClassifier(config).to(device)
     
     # 創建訓練器
-    trainer = MacOptimizedTrainer(model, config, device, output_dir)
+    trainer = OptimizedTrainer(model, config, device, output_dir)
     
     # 恢復訓練（如果指定）
     start_epoch = 1
@@ -787,6 +855,9 @@ def main():
                        help='Backbone架構')
     parser.add_argument('--resume', type=str, default=None,
                        help='恢復訓練的檢查點路徑')
+    parser.add_argument('--platform', type=str, default='auto',
+                        choices=['mps', 'cuda', 'cpu', 'auto'],
+                        help='所使用的硬體裝置')
     
     args = parser.parse_args()
     
@@ -794,7 +865,8 @@ def main():
         data_root=args.data,
         config_type=args.config,
         backbone_type=args.backbone,
-        resume_from=args.resume
+        resume_from=args.resume,
+        platform=args.platform
     )
 
 if __name__ == "__main__":
