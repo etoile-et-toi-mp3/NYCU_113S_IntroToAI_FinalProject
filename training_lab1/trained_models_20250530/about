@@ -1,0 +1,3 @@
+i just extracted all the best_model_{backbone}_performance.pth files from the result/ directory,
+and simply renamed them.
+

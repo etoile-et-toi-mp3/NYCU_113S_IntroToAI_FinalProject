@@ -537,6 +537,9 @@ def main():
                        choices=['mobilenet', 'resnet18', 'resnet50', 'efficientnet_b0', 
                                'efficientnet_b2', 'vit_tiny', 'vit_small', 'fashion_resnet'],
                        help='Backbone架構類型')
+    parser.add_argument('--platform', type=str, default='auto',
+                        choices=['mps', 'cuda', 'cpu', 'auto'],
+                        help='所使用的硬體裝置')
     parser.add_argument('--output-dir', type=str, default='./recommendations',
                        help='結果輸出目錄')
     parser.add_argument('--top-k', type=int, default=10,
@@ -561,8 +564,17 @@ def main():
         return
     
     try:
-        # 設置設備
-        device = setup_mac_optimization()
+        # 設備設置
+        device = torch.device("cpu")
+        if args.platform == "auto":
+            device = setup_cuda_optimization() # prefer cuda first
+            if device == torch.device("cpu"):
+                device = setup_mac_optimization()
+        else:
+            if args.platform == "cuda":
+                device = setup_cuda_optimization()
+            elif args.platform == "mps":
+                device = setup_mac_optimization()
         
         # 載入模型
         model, style_categories, gender_categories = load_trained_model(

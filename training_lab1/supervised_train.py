@@ -243,81 +243,6 @@ class TrainingConfig:
         self.num_workers = 8
         self.max_memory_mb = 16384
 
-# ==================== Backbone定義 ====================
-
-class FashionBackbone(nn.Module):
-    """可配置的Fashion Backbone"""
-    def __init__(self, backbone_type='mobilenet', pretrained=True):
-        super(FashionBackbone, self).__init__()
-        self.backbone_type = backbone_type
-        
-        if backbone_type == 'mobilenet':
-            self.backbone = models.mobilenet_v3_large(weights=models.MobileNet_V3_Large_Weights.IMAGENET1K_V1 if pretrained else None)
-            self.backbone.classifier = nn.Identity()
-            self.feature_dim = 960
-            
-        elif backbone_type == 'resnet18':
-            self.backbone = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1 if pretrained else None)
-            self.backbone.fc = nn.Identity()
-            self.feature_dim = 512
-            
-        elif backbone_type == 'resnet50':
-            self.backbone = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1 if pretrained else None)
-            self.backbone.fc = nn.Identity()
-            self.feature_dim = 2048
-            
-        elif backbone_type == 'efficientnet_b0':
-            self.backbone = timm.create_model('efficientnet_b0', pretrained=pretrained, num_classes=0)
-            self.feature_dim = 1280
-            
-        elif backbone_type == 'efficientnet_b2':
-            self.backbone = timm.create_model('efficientnet_b2', pretrained=pretrained, num_classes=0)
-            self.feature_dim = 1408
-            
-        elif backbone_type == 'vit_tiny':
-            if pretrained:
-                self.backbone = timm.create_model('vit_tiny_patch16_224', pretrained=True, num_classes=0)
-            else:
-                config = ViTConfig(hidden_size=192, num_hidden_layers=12, num_attention_heads=3)
-                self.backbone = ViTModel(config)
-            self.feature_dim = 192
-            
-        elif backbone_type == 'vit_small':
-            if pretrained:
-                self.backbone = timm.create_model('vit_small_patch16_224', pretrained=True, num_classes=0)
-            else:
-                config = ViTConfig(hidden_size=384, num_hidden_layers=12, num_attention_heads=6)
-                self.backbone = ViTModel(config)
-            self.feature_dim = 384
-            
-        elif backbone_type == 'fashion_resnet':
-            self.backbone = self._create_fashion_resnet(pretrained)
-            self.feature_dim = 512
-            
-        else:
-            raise ValueError(f"不支持的backbone類型: {backbone_type}")
-    
-    def _create_fashion_resnet(self, pretrained):
-        """創建針對時尚圖片優化的ResNet"""
-        base_model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1 if pretrained else None)
-        base_model.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
-        base_model.maxpool = nn.Identity()
-        base_model.fc = nn.Identity()
-        return base_model
-    
-    def forward(self, x):
-        if 'vit' in self.backbone_type and hasattr(self.backbone, 'last_hidden_state'):
-            outputs = self.backbone(x)
-            if hasattr(outputs, 'last_hidden_state'):
-                return outputs.last_hidden_state[:, 0, :]
-            else:
-                return outputs
-        else:
-            return self.backbone(x)
-    
-    def get_feature_dim(self):
-        return self.feature_dim
-
 # ==================== 數據集 ====================
 
 class OptimizedOutfitDataset(Dataset):
@@ -403,6 +328,81 @@ class OptimizedOutfitDataset(Dataset):
             'gender': sample['gender'],
             'path': sample['path']
         }
+
+# ==================== Backbone定義 ====================
+
+class FashionBackbone(nn.Module):
+    """可配置的Fashion Backbone"""
+    def __init__(self, backbone_type='mobilenet', pretrained=True):
+        super(FashionBackbone, self).__init__()
+        self.backbone_type = backbone_type
+        
+        if backbone_type == 'mobilenet':
+            self.backbone = models.mobilenet_v3_large(weights=models.MobileNet_V3_Large_Weights.IMAGENET1K_V1 if pretrained else None)
+            self.backbone.classifier = nn.Identity()
+            self.feature_dim = 960
+            
+        elif backbone_type == 'resnet18':
+            self.backbone = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1 if pretrained else None)
+            self.backbone.fc = nn.Identity()
+            self.feature_dim = 512
+            
+        elif backbone_type == 'resnet50':
+            self.backbone = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1 if pretrained else None)
+            self.backbone.fc = nn.Identity()
+            self.feature_dim = 2048
+            
+        elif backbone_type == 'efficientnet_b0':
+            self.backbone = timm.create_model('efficientnet_b0', pretrained=pretrained, num_classes=0)
+            self.feature_dim = 1280
+            
+        elif backbone_type == 'efficientnet_b2':
+            self.backbone = timm.create_model('efficientnet_b2', pretrained=pretrained, num_classes=0)
+            self.feature_dim = 1408
+            
+        elif backbone_type == 'vit_tiny':
+            if pretrained:
+                self.backbone = timm.create_model('vit_tiny_patch16_224', pretrained=True, num_classes=0)
+            else:
+                config = ViTConfig(hidden_size=192, num_hidden_layers=12, num_attention_heads=3)
+                self.backbone = ViTModel(config)
+            self.feature_dim = 192
+            
+        elif backbone_type == 'vit_small':
+            if pretrained:
+                self.backbone = timm.create_model('vit_small_patch16_224', pretrained=True, num_classes=0)
+            else:
+                config = ViTConfig(hidden_size=384, num_hidden_layers=12, num_attention_heads=6)
+                self.backbone = ViTModel(config)
+            self.feature_dim = 384
+            
+        elif backbone_type == 'fashion_resnet':
+            self.backbone = self._create_fashion_resnet(pretrained)
+            self.feature_dim = 512
+            
+        else:
+            raise ValueError(f"不支持的backbone類型: {backbone_type}")
+    
+    def _create_fashion_resnet(self, pretrained):
+        """創建針對時尚圖片優化的ResNet"""
+        base_model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1 if pretrained else None)
+        base_model.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        base_model.maxpool = nn.Identity()
+        base_model.fc = nn.Identity()
+        return base_model
+    
+    def forward(self, x):
+        if 'vit' in self.backbone_type and hasattr(self.backbone, 'last_hidden_state'):
+            outputs = self.backbone(x)
+            if hasattr(outputs, 'last_hidden_state'):
+                return outputs.last_hidden_state[:, 0, :]
+            else:
+                return outputs
+        else:
+            return self.backbone(x)
+    
+    def get_feature_dim(self):
+        return self.feature_dim
 
 # ==================== 模型定義 ====================
 
