@@ -21,6 +21,7 @@ from sklearn.neighbors import NearestNeighbors
 import argparse
 from collections import defaultdict
 import warnings
+import pillow_avif
 warnings.filterwarnings('ignore')
 
 # ==================== Mac優化設置 ====================
@@ -33,6 +34,22 @@ def setup_mac_optimization():
     else:
         device = torch.device("cpu")
         print("💻 使用 CPU")
+    return device
+
+# ==================== Cuda加速設置 ====================
+
+def setup_cuda_optimization():
+    """設置 NVIDIA CUDA 特定的優化"""
+    if torch.cuda.is_available():
+        print(f"✅ 檢測到 CUDA 支持: {torch.cuda.get_device_name(0)}")
+        device = torch.device("cuda")
+        
+        # CUDA 性能優化選項
+        torch.backends.cudnn.benchmark = True  # 適用於輸入尺寸固定的模型
+        torch.backends.cudnn.deterministic = False  # 提高速度但結果非完全可重現
+    else:
+        print("⚠️ CUDA 不可用，使用 CPU")
+        device = torch.device("cpu")
     return device
 
 # ==================== 模型架構定義（與訓練時相同） ====================
@@ -360,6 +377,9 @@ def main():
                        choices=['mobilenet', 'resnet18', 'resnet50', 'efficientnet_b0', 
                                'efficientnet_b2', 'vit_tiny', 'vit_small', 'fashion_resnet'],
                        help='Backbone架構類型')
+    parser.add_argument('--platform', type=str, default='auto',
+                        choices=['mps', 'cuda', 'cpu', 'auto'],
+                        help='所使用的硬體裝置')
     parser.add_argument('--output-dir', type=str, default='./recommendations',
                        help='結果輸出目錄')
     parser.add_argument('--top-k', type=int, default=10,
@@ -384,8 +404,17 @@ def main():
         return
     
     try:
-        # 設置設備
-        device = setup_mac_optimization()
+        # 設備設置
+        device = torch.device("cpu")
+        if args.platform == "auto":
+            device = setup_cuda_optimization() # prefer cuda first
+            if device == torch.device("cpu"):
+                device = setup_mac_optimization()
+        else:
+            if args.platform == "cuda":
+                device = setup_cuda_optimization()
+            elif args.platform == "mps":
+                device = setup_mac_optimization()
         
         # 載入模型
         model = load_trained_model(args.model, device, args.backbone)
