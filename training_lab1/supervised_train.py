@@ -156,10 +156,9 @@ def save_training_history_plot(train_history, output_dir):
 
 class TrainingConfig:
     """訓練配置類"""
-    def __init__(self, config_type="balanced", backbone_type="mobilenet", device="cpu"):
+    def __init__(self, config_type="balanced", backbone_type="mobilenet"):
         self.config_type = config_type
         self.backbone_type = backbone_type
-        self.device = device
         
         # 基礎配置
         self.num_styles = 11
@@ -174,22 +173,14 @@ class TrainingConfig:
         self.gender_categories = ['MEN', 'WOMEN']
         
         # 根據配置類型設置參數
-        if device == "cuda":
-            if config_type == "minimal":
-                self._cuda_set_minimal_config()
-            elif config_type == "performance":
-                self._cuda_set_performance_config()
-            else:  # balanced
-                self._cuda_set_balanced_config()
-        else:
-            if config_type == "minimal":
-                self._mac_set_minimal_config()
-            elif config_type == "performance":
-                self._mac_set_performance_config()
-            else:  # balanced
-                self._mac_set_balanced_config()
+        if config_type == "minimal":
+            self._set_minimal_config()
+        elif config_type == "performance":
+            self._set_performance_config()
+        else:  # balanced
+            self._set_balanced_config()
 
-    def _mac_set_minimal_config(self):
+    def _set_minimal_config(self):
         """最小配置 - 適合記憶體有限的情況"""
         self.batch_size = 2
         self.num_epochs = 10
@@ -198,7 +189,7 @@ class TrainingConfig:
         self.num_workers = 0
         self.max_memory_mb = 4000
         
-    def _mac_set_balanced_config(self):
+    def _set_balanced_config(self):
         """平衡配置 - 推薦設置"""
         self.batch_size = 8
         self.num_epochs = 30
@@ -207,41 +198,14 @@ class TrainingConfig:
         self.num_workers = 2
         self.max_memory_mb = 8000
         
-    def _mac_set_performance_config(self):
-        """性能配置 - 適合高性能Mac"""
+    def _set_performance_config(self):
+        """性能配置 - 適合高性能設備"""
         self.batch_size = 16
         self.num_epochs = 50
         self.learning_rate = 0.0005
         self.max_samples_per_class = 1000
         self.num_workers = 4
         self.max_memory_mb = 16000
-        
-    def _cuda_set_minimal_config(self):
-        """最小配置 - 適用於低記憶體 CUDA 設備或無 GPU 設備"""
-        self.batch_size = 8
-        self.num_epochs = 15
-        self.learning_rate = 0.001
-        self.max_samples_per_class = 200
-        self.num_workers = 2
-        self.max_memory_mb = 4096
-        
-    def _cuda_set_balanced_config(self):
-        """平衡配置 - 適用於大多數 CUDA 設備"""
-        self.batch_size = 32
-        self.num_epochs = 25
-        self.learning_rate = 0.001
-        self.max_samples_per_class = 500
-        self.num_workers = 4
-        self.max_memory_mb = 8192
-
-    def _cuda_set_performance_config(self):
-        """性能配置 - 適用於高端 GPU 系統"""
-        self.batch_size = 64
-        self.num_epochs = 40
-        self.learning_rate = 0.0005
-        self.max_samples_per_class = 1000
-        self.num_workers = 8
-        self.max_memory_mb = 16384
 
 # ==================== 數據集 ====================
 
@@ -731,7 +695,7 @@ def train_model(data_root, config_type="balanced", backbone_type="mobilenet", re
     output_dir = create_output_directory()
     
     # 創建配置
-    config = TrainingConfig(config_type, backbone_type, device)
+    config = TrainingConfig(config_type, backbone_type)
     save_config_to_file(config, output_dir)
     
     print(f"📊 訓練配置:")
