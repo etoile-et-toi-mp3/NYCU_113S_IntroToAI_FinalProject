@@ -158,7 +158,7 @@ def save_training_history_plot(train_history, output_dir):
 
 class TrainingConfig:
     """訓練配置類"""
-    def __init__(self, config_type="balanced", backbone_type="resnet50", device="cpu"):
+    def __init__(self, config_type="balanced", backbone_type="resnet50", device=torch.device("cpu")):
         self.config_type = config_type
         self.backbone_type = backbone_type
         
@@ -168,7 +168,7 @@ class TrainingConfig:
         self.max_samples_per_class = None  # 無監督不需要類別限制
         
         # 根據配置類型設置參數
-        if device == "cuda":
+        if device == torch.device("cuda"):
             if config_type == "minimal":
                 self._cuda_set_minimal_config()
             elif config_type == "performance":
@@ -209,7 +209,7 @@ class TrainingConfig:
         
     def _cuda_set_minimal_config(self):
         """最小配置 - 適合記憶體有限的情況"""
-        self.batch_size = 64
+        self.batch_size = 8
         self.num_epochs = 15
         self.learning_rate = 1e-4
         self.num_workers = 2
@@ -217,15 +217,15 @@ class TrainingConfig:
         
     def _cuda_set_balanced_config(self):
         """平衡配置 - 推薦設置"""
-        self.batch_size = 128
+        self.batch_size = 32
         self.num_epochs = 20
         self.learning_rate = 3e-4
         self.num_workers = 4
         self.max_memory_mb = 8192
         
     def _cuda_set_performance_config(self):
-        """性能配置 - 適合高性能Mac"""
-        self.batch_size = 256
+        """性能配置 - 適合高性能 CUDA """
+        self.batch_size = 64
         self.num_epochs = 30
         self.learning_rate = 5e-4
         self.num_workers = 8
