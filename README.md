@@ -1,4 +1,6 @@
-# Clothing Decision Benchmark ✨![](./static/splash.png)
+# Clothing Decision Benchmark 
+![](./static/splash.png)
+
 ## Background
 
 Clothing Decision Benchmark (穿搭寶 / C.D.B.) is a project developed by [etoile_et_toi.mp3](https://github.com/etoile-et-toi-mp3), [slashotw](https://github.com/slashotw), [tingyun1412](https://github.com/tingyun1412), and [EthelHsiao](https://github.com/EthelHsiao) during the second semester of the 113 academic year (Feb. 2025 ~ Jun. 2025) as a final project for the "Introduction to Artificial Intelligence" course, which is instructed by A.P. Yu-Chun Yen (顏羽君) at National Yang Ming Chiao Tung University, Taiwan.
@@ -11,7 +13,7 @@ The purpose of this repository is to showcase the acquired skills of the authors
 
 We are proposing a AI-powered project —— CDB —— that can help users improve their looks and appearance through suggesting similar but slightly-better outfits from our dataset.
 
-![The workflow of this project](./figures/workflow.png)
+![The workflow of this project](./static/workflow.png)
 
 We have two main stages working together in this project.
 
