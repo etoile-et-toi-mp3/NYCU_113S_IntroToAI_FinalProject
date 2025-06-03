@@ -44,6 +44,32 @@ def setup_mac_optimization():
     
     return device
 
+# ==================== Cuda 加速設置 ====================
+
+def setup_cuda_optimization():
+    """設置 NVIDIA CUDA 特定的優化"""
+    if mp.get_start_method(allow_none=True) != 'spawn':
+        mp.set_start_method('spawn', force=True)
+
+    if torch.cuda.is_available():
+        print(f"✅ 檢測到 CUDA 支持: {torch.cuda.get_device_name(0)}")
+        device = torch.device("cuda")
+
+        # CUDA 性能優化選項
+        torch.backends.cudnn.benchmark = True   # 適用於輸入尺寸固定的模型
+        torch.backends.cudnn.deterministic = False  # 提高速度但結果非完全可重現
+
+        # CUDA 優化設置（視硬體而定可自定義）
+        torch.set_num_threads(12)  # 高效能主機建議提高線程數
+        os.environ['CUDA_LAUNCH_BLOCKING'] = '0'  # 非同步執行模式，提升效能（除錯時請設為 '1'）
+        print("🚀 CUDA 加速優化設置已啟用")
+    else:
+        print("⚠️ CUDA 不可用，使用 CPU")
+        device = torch.device("cpu")
+        torch.set_num_threads(min(8, mp.cpu_count()))
+
+    return device
+
 # ==================== 簡化配置 ====================
 
 class SimpleTrainingConfig:
@@ -398,11 +424,23 @@ class SimpleFashionTrainer:
 
 # ==================== 主訓練函數 ====================
 
-def train_simple_model(data_root, config_type="balanced", resume_from=None):
+def train_simple_model(data_root, config_type="balanced", resume_from=None, platform="auto"):
     """
     簡化版模型訓練
     """
-    device = setup_mac_optimization()
+    
+    # 設備設置
+    device = torch.device("cpu")
+    if platform == "auto":
+        device = setup_cuda_optimization() # prefer cuda first
+        if device == torch.device("cpu"):
+            device = setup_mac_optimization()
+    else:
+        if platform == "cuda":
+            device = setup_cuda_optimization()
+        elif platform == "mps":
+            device = setup_mac_optimization()
+    
     config = SimpleTrainingConfig(config_type)
     
     print(f"🚀 開始簡化版穿搭推薦模型訓練")
@@ -523,6 +561,9 @@ if __name__ == "__main__":
     parser.add_argument('--config', type=str, default='balanced', 
                        choices=['minimal', 'balanced', 'performance'], help='訓練配置')
     parser.add_argument('--resume', type=str, help='恢復訓練的檢查點路徑')
+    parser.add_argument('--platform', type=str, default='auto',
+                        choices=['mps', 'cuda', 'cpu', 'auto'],
+                        help='所使用的硬體裝置')
     
     args = parser.parse_args()
-    train_simple_model(args.data_root, args.config, args.resume) 
+    train_simple_model(args.data_root, args.config, args.resume, args.platform)
