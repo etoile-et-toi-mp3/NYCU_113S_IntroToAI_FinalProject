@@ -18,6 +18,8 @@ from transformers import (
     AutoProcessor, LlavaNextForConditionalGeneration,
     AutoTokenizer, AutoModelForCausalLM
 )
+import sys
+sys.path.append('../training_lab2')
 from simple_train_model import SimpleFashionRecommender, SimpleTrainingConfig
 import warnings
 import time
