@@ -26,3 +26,7 @@ Related source codes can be found in the directories above.
 ## Contact
 
 If you have any questions or suggestions, feel free to contact the author via [email](mailto:willyfu0905.cs12@nycu.edu.tw).
+
+## Slides
+
+We also have prepared a [Presentation](https://www.canva.com/design/DAGpRUsVvz4/J7LZmdsA9lcImkqvaCerBg/edit) for this project.
