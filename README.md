@@ -1,4 +1,4 @@
-# About This Repository
+# Clothing Decision Benchmark
 
 ![](./static/splash.png)
 ## Background
