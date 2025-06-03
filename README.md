@@ -1,4 +1,4 @@
-# Clothing Decision Benchmark
+# Clothing Decision Benchmark ✨
 
 ![](./static/splash.png)
 ## Background
